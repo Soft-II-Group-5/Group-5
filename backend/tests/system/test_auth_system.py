@@ -1,6 +1,7 @@
 import pytest
 import app.auth.controller as auth_controller
-from app.auth.security import hash_password
+from app.auth.security import hash_password, verify_password
+from supabase_auth.errors import AuthApiError
 
 
 class FakeResp:
@@ -18,6 +19,32 @@ FAKE_USER = {
 
 
 def _build_fake_supabase(existing_users=None, insert_result=None, login_result=None):
+
+    class FakeAuthUser:
+        def __init__(self, user_id):
+            self.id = user_id
+
+    class FakeAuthResponse:
+        def __init__(self, user_id):
+            self.user = FakeAuthUser(user_id)
+
+    class FakeAdmin:
+        def create_user(self, data):
+            uid = (insert_result or [{}])[0].get("id", "fake-uuid")
+            return FakeAuthResponse(uid)
+
+    class FakeAuth:
+        def __init__(self):
+            self.admin = FakeAdmin()
+
+        def sign_in_with_password(self, credentials):
+            if not login_result:
+                raise AuthApiError("Invalid credentials", 400)
+            user = login_result[0]
+            if not verify_password(credentials["password"], user.get("password_hash", "")):
+                raise AuthApiError("Invalid credentials", 400)
+            return FakeAuthResponse(user["id"])
+
     class FakeQuery:
         def __init__(self, data):
             self._data = data
@@ -26,6 +53,9 @@ def _build_fake_supabase(existing_users=None, insert_result=None, login_result=N
             return self
 
         def eq(self, *a, **kw):
+            return self
+
+        def limit(self, *a, **kw):
             return self
 
         def execute(self):
@@ -43,7 +73,13 @@ def _build_fake_supabase(existing_users=None, insert_result=None, login_result=N
         def insert(self, *a, **kw):
             return FakeQuery(insert_result or [])
 
+        def upsert(self, *a, **kw):
+            return FakeQuery(insert_result or [])
+
     class FakeSB:
+        def __init__(self):
+            self.auth = FakeAuth()
+
         def table(self, name):
             return FakeTable(name)
 
