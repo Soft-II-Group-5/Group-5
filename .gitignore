@@ -17,6 +17,7 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 dist/
+frontend/.vite/
 
 
 # logs
@@ -24,5 +25,3 @@ dist/
 
 # OS junk
 .DS_Store
-
-frontend/.vite/
