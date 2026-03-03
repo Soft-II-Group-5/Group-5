@@ -7,7 +7,10 @@ on:
 jobs:
   backend:
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    strategy: 
+      matrix: 
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -21,14 +24,21 @@ jobs:
           pip install -r backend/requirements.txt
 
       # Minimal sanity check (prevents "missing dependency" surprises)
-      - name: Import app
+      - name: Run tests and coverage
+        working-directory: backend
         env:
+          PYTHONPATH: .
           SUPABASE_URL: "http://localhost"
           SUPABASE_ANON_KEY: "ci-anon" 
           SUPABASE_SERVICE_ROLE_KEY: "ci-dev"
         run: |
-          python -c "from app.main import app; print('backend import ok')"
-        working-directory: backend
+          pytest --cov=app --cov-report=term-missing --cov-report=xml
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with: 
+          name: backend-coverage-${{ matrix.os }}
+          path: backend/coverage.xml  
 
   frontend:
     timeout-minutes: 10
@@ -49,4 +59,7 @@ jobs:
         working-directory: frontend
       - name: Lint frontend
         run: npm run lint
+        working-directory: frontend
+      - name: Test frontend
+        run: npm test
         working-directory: frontend
