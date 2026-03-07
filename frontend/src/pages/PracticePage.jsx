@@ -1,6 +1,5 @@
-// frontend/src/pages/PracticePage.jsx
 import { useMemo, useRef, useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import '../styles/practice.css'
 
@@ -25,9 +24,64 @@ function buildGrid(chunk, repeats, perRow) {
   return rows.join('\n')
 }
 
+function normalizePromptText(value) {
+  return String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n+$/, '')
+}
+
+function flattenLessonTargets(lesson, perRow) {
+  if (
+    lesson?.targetsByTier &&
+    typeof lesson.targetsByTier === 'object' &&
+    !Array.isArray(lesson.targetsByTier)
+  ) {
+    const sortedTierKeys = Object.keys(lesson.targetsByTier).sort(
+      (a, b) => Number(a) - Number(b)
+    )
+
+    const flattened = sortedTierKeys.flatMap((tierKey) => {
+      const tierTargets = Array.isArray(lesson.targetsByTier[tierKey])
+        ? lesson.targetsByTier[tierKey]
+        : []
+
+      return tierTargets
+        .map((entry) => {
+          if (typeof entry === 'string') return normalizePromptText(entry)
+          if (entry && typeof entry.text === 'string') {
+            return normalizePromptText(entry.text)
+          }
+          return ''
+        })
+        .filter(Boolean)
+    })
+
+    if (flattened.length > 0) return flattened
+  }
+
+  if (Array.isArray(lesson?.targets) && lesson.targets.length > 0) {
+    return lesson.targets
+      .map((entry) => {
+        if (typeof entry === 'string') return normalizePromptText(entry)
+        if (entry && typeof entry.text === 'string') {
+          return normalizePromptText(entry.text)
+        }
+        return ''
+      })
+      .filter(Boolean)
+  }
+
+  if (lesson?.chunk && lesson?.repeats) {
+    return [normalizePromptText(buildGrid(lesson.chunk, lesson.repeats, perRow))]
+  }
+
+  return ['']
+}
+
 export default function PracticePage() {
   const { unitId, stepId } = useParams()
-  const navigate = useNavigate()
   const inputRef = useRef(null)
 
   const unit = useMemo(
@@ -47,23 +101,61 @@ export default function PracticePage() {
   const [perRow, setPerRow] = useState(getPerRow())
 
   const [hasStarted, setHasStarted] = useState(false)
-  const [targetIndex, setTargetIndex] = useState(0)
   const [overlayDismissed, setOverlayDismissed] = useState(false)
+  const [promptIndex, setPromptIndex] = useState(0)
+  const [hasCompletedFirstCycle, setHasCompletedFirstCycle] = useState(false)
 
-  // Adaptive tier system (persisted per step)
-  const [tier, setTier] = useState(1)
-  const startTimeRef = useRef(null)
+  const autoAdvanceLockRef = useRef(false)
+  const pendingAdvanceRef = useRef(false)
 
-  // =========================
-  // Backend practice tracking
-  // =========================
   const sessionIdRef = useRef(null)
   const sessionStartRef = useRef(null)
 
-  // totals across whole lesson (wrongCount/fixedCount reset per target)
-  const totalWrongRef = useRef(0)
-  const totalFixedRef = useRef(0)
-  const totalTargetCharsRef = useRef(0)
+  const cycleWrongRef = useRef(0)
+  const cycleFixedRef = useRef(0)
+  const cycleTargetCharsRef = useRef(0)
+
+  function focusInput() {
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  const prompts = useMemo(() => {
+    return flattenLessonTargets(lesson, perRow)
+  }, [lesson, perRow])
+
+  const safePromptIndex =
+    prompts.length > 0 ? Math.min(promptIndex, prompts.length - 1) : 0
+
+  const target = normalizePromptText(prompts[safePromptIndex] ?? '')
+  const doneExact = normalizePromptText(typed) === target
+  const expectedChar = typed.length < target.length ? target[typed.length] : null
+
+  useEffect(() => {
+    const onResize = () => setPerRow(getPerRow())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    setTyped('')
+    setWrongCount(0)
+    setFixedCount(0)
+    setHasStarted(false)
+    setOverlayDismissed(false)
+    setPromptIndex(0)
+    setHasCompletedFirstCycle(false)
+
+    autoAdvanceLockRef.current = false
+    pendingAdvanceRef.current = false
+
+    sessionIdRef.current = null
+    sessionStartRef.current = null
+    cycleWrongRef.current = 0
+    cycleFixedRef.current = 0
+    cycleTargetCharsRef.current = 0
+
+    focusInput()
+  }, [unitId, stepId])
 
   async function ensureBackendSessionStarted() {
     if (sessionIdRef.current) return
@@ -92,21 +184,21 @@ export default function PracticePage() {
     }
   }
 
-  async function submitBackendIfPossible() {
+  async function submitBackendCycleIfPossible() {
     const sessionId = sessionIdRef.current
     const startMs = sessionStartRef.current
 
     if (!sessionId || !startMs) return
 
-    const timeSeconds = (Date.now() - startMs) / 1000
+    const timeSeconds = Math.max(1, (Date.now() - startMs) / 1000)
     const durationSeconds = Math.max(1, Math.round(timeSeconds))
 
-    const chars = Math.max(1, totalTargetCharsRef.current)
+    const chars = Math.max(1, cycleTargetCharsRef.current)
     const minutes = timeSeconds / 60
     const wpm = (chars / 5) / Math.max(minutes, 0.0001)
 
-    const totalErrors = totalWrongRef.current + totalFixedRef.current
-    const accuracy = chars / (chars + totalErrors)
+    const totalErrors = cycleWrongRef.current + cycleFixedRef.current
+    const accuracy = chars / Math.max(chars + totalErrors, 1)
 
     try {
       await submitPractice({
@@ -116,10 +208,12 @@ export default function PracticePage() {
         error_count: totalErrors,
         time_seconds: timeSeconds,
         duration_seconds: durationSeconds,
-        tier, // backend normalizes; sessions.tier is integer
+        tier: null,
         details: {
           unit_id: Number(unitId),
           step_id: Number(stepId),
+          cycle_completed: true,
+          prompt_count: prompts.length,
         },
       })
     } catch (e) {
@@ -127,224 +221,76 @@ export default function PracticePage() {
     }
   }
 
-  // --------- localStorage helpers ----------
-  function tierKey() {
-    return `type2code:tier:${unitId}:${stepId}`
-  }
-
-  function loadTier() {
-    const raw = localStorage.getItem(tierKey())
-    const n = Number(raw)
-    return Number.isFinite(n) && n > 0 ? n : 1
-  }
-
-  function saveTier(nextTier) {
-    localStorage.setItem(tierKey(), String(nextTier))
-  }
-
-  // streak persists per step
-  const streakKey = useMemo(
-    () => `type2code:streak:${unitId}:${stepId}`,
-    [unitId, stepId]
-  )
-
-  function loadStreak() {
-    const raw = localStorage.getItem(streakKey)
-    try {
-      const s = raw ? JSON.parse(raw) : null
-      return {
-        promote: Number(s?.promote) || 0,
-        demote: Number(s?.demote) || 0,
-      }
-    } catch {
-      return { promote: 0, demote: 0 }
-    }
-  }
-
-  function saveStreak(s) {
-    localStorage.setItem(streakKey, JSON.stringify(s))
-  }
-
-  function clearTierAndStreak() {
-    localStorage.removeItem(streakKey)
-    localStorage.removeItem(tierKey())
-    setTier(1)
-    setTargetIndex(0)
-    resetTypingForNextTarget()
-  }
-
-  // Simple rules (can be overridden per-lesson via lesson.tierRules)
-  const rules = useMemo(() => {
-    const defaults = {
-      minTier: 1,
-      maxTier: 3,
-      promoteIf: { wpm: 28, accuracy: 0.95, streak: 2 },
-      demoteIf: { wpm: 14, accuracy: 0.85, streak: 2 },
-    }
-    return { ...defaults, ...(lesson.tierRules || {}) }
-  }, [lesson])
-  // ----------------------------------------
-
-  function focusInput() {
-    requestAnimationFrame(() => inputRef.current?.focus())
-  }
-
-  useEffect(() => {
-    const onResize = () => setPerRow(getPerRow())
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  // Reset local state when changing lesson (DO NOT clear streak here; it should persist per step)
-  useEffect(() => {
+  function resetTypingForNextPrompt() {
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
-    setHasStarted(false)
-    setTargetIndex(0)
-    setOverlayDismissed(false)
-    startTimeRef.current = null
-
-    const t = loadTier()
-    setTier(t)
-
-    // reset backend refs + totals for this step
-    sessionIdRef.current = null
-    sessionStartRef.current = null
-    totalWrongRef.current = 0
-    totalFixedRef.current = 0
-    totalTargetCharsRef.current = 0
-
-    focusInput()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unitId, stepId])
-
-  const tierKeyStr = String(tier)
-
-  const hasTierTargets =
-    lesson.targetsByTier &&
-    typeof lesson.targetsByTier === 'object' &&
-    Array.isArray(lesson.targetsByTier[tierKeyStr]) &&
-    lesson.targetsByTier[tierKeyStr].length > 0
-
-  const useTargets = Array.isArray(lesson.targets) && lesson.targets.length > 0
-
-  const targets = useMemo(() => {
-    if (hasTierTargets) return lesson.targetsByTier[tierKeyStr]
-    if (useTargets) return lesson.targets
-    return [buildGrid(lesson.chunk, lesson.repeats, perRow)]
-  }, [lesson, perRow, useTargets, hasTierTargets, tierKeyStr])
-
-  const target = targets[Math.min(targetIndex, targets.length - 1)] ?? ''
-
-  const doneExact = typed === target
-  const expectedChar = typed.length < target.length ? target[typed.length] : null
-
-  function resetTypingForNextTarget() {
-    setTyped('')
-    setWrongCount(0)
-    setFixedCount(0)
-    startTimeRef.current = null
+    autoAdvanceLockRef.current = false
+    pendingAdvanceRef.current = false
     focusInput()
   }
 
-  // returns true if tier changed (caller should stop advancing)
-  function updateTierAfterTargetComplete() {
-    const start = startTimeRef.current
-    if (!start) return false
-
-    const durationMs = Math.max(1, Date.now() - start)
-    const minutes = durationMs / 60000
-
-    const chars = target.length
-    const wpm = (chars / 5) / minutes
-
-    const totalTypedEvents = chars + wrongCount + fixedCount
-    const accuracy = totalTypedEvents > 0 ? chars / totalTypedEvents : 1
-
-    const s = loadStreak()
-
-    const promoteHit =
-      wpm >= rules.promoteIf.wpm && accuracy >= rules.promoteIf.accuracy
-    const demoteHit = wpm <= rules.demoteIf.wpm || accuracy <= rules.demoteIf.accuracy
-
-    let nextStreak = { ...s }
-
-    if (promoteHit) {
-      nextStreak.promote += 1
-      nextStreak.demote = 0
-    } else if (demoteHit) {
-      nextStreak.demote += 1
-      nextStreak.promote = 0
-    } else {
-      nextStreak.promote = 0
-      nextStreak.demote = 0
-    }
-
-    let nextTier = tier
-
-    if (nextStreak.promote >= rules.promoteIf.streak) {
-      nextTier = Math.min(rules.maxTier, tier + 1)
-      nextStreak = { promote: 0, demote: 0 }
-    } else if (nextStreak.demote >= rules.demoteIf.streak) {
-      nextTier = Math.max(rules.minTier, tier - 1)
-      nextStreak = { promote: 0, demote: 0 }
-    }
-
-    saveStreak(nextStreak)
-
-    if (nextTier !== tier) {
-      setTier(nextTier)
-      saveTier(nextTier)
-      setTargetIndex(0)
-      resetTypingForNextTarget()
-      return true
-    }
-
-    return false
-  }
-
-  async function completeAndNextLesson() {
-    // submit backend stats BEFORE navigation
-    await submitBackendIfPossible()
+  function markLessonCompletedOnce() {
+    if (hasCompletedFirstCycle) return
 
     const current = loadProgress()
     const nextProgress = markCompleted(current, Number(unitId), Number(stepId))
     saveProgress(nextProgress)
-
-    // clear tier streaks for this step when completed (so next time they start fresh)
-    localStorage.removeItem(streakKey)
-    localStorage.removeItem(tierKey())
-
-    setTyped('')
-    setWrongCount(0)
-    setFixedCount(0)
-    setHasStarted(false)
-    setTargetIndex(0)
-    setOverlayDismissed(false)
-
-    const idx = unit.lessons.findIndex((l) => l.stepId === Number(stepId))
-    const next = unit.lessons[idx + 1]
-    if (next) navigate(`/practice/${unit.id}/${next.stepId}`)
-    else navigate('/lessons')
+    setHasCompletedFirstCycle(true)
   }
 
-  async function advance() {
-    // accumulate totals for this target BEFORE tier logic resets counters
-    totalWrongRef.current += wrongCount
-    totalFixedRef.current += fixedCount
-    totalTargetCharsRef.current += target.length
+  async function startNextBackendCycle() {
+    sessionIdRef.current = null
+    sessionStartRef.current = null
+    cycleWrongRef.current = 0
+    cycleFixedRef.current = 0
+    cycleTargetCharsRef.current = 0
 
-    const tierChanged = updateTierAfterTargetComplete()
-    if (tierChanged) return
+    if (hasStarted) {
+      await ensureBackendSessionStarted()
+    }
+  }
 
-    if (targetIndex < targets.length - 1) {
-      setTargetIndex((i) => i + 1)
-      resetTypingForNextTarget()
+  async function advancePrompt() {
+    cycleWrongRef.current += wrongCount
+    cycleFixedRef.current += fixedCount
+    cycleTargetCharsRef.current += target.length
+
+    const isLastPrompt = safePromptIndex >= prompts.length - 1
+
+    if (!isLastPrompt) {
+      setPromptIndex((prev) => prev + 1)
+      resetTypingForNextPrompt()
       return
     }
 
-    await completeAndNextLesson()
+    await submitBackendCycleIfPossible()
+    markLessonCompletedOnce()
+
+    setPromptIndex(0)
+    resetTypingForNextPrompt()
+    await startNextBackendCycle()
+  }
+
+  useEffect(() => {
+    if (!pendingAdvanceRef.current) return
+    if (!doneExact) return
+    if (autoAdvanceLockRef.current) return
+
+    autoAdvanceLockRef.current = true
+
+    const timer = setTimeout(() => {
+      advancePrompt()
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [doneExact, promptIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function beginSessionIfNeeded() {
+    if (!hasStarted) setHasStarted(true)
+    if (!overlayDismissed) setOverlayDismissed(true)
+    ensureBackendSessionStarted()
+    focusInput()
   }
 
   function onKeyDown(e) {
@@ -352,19 +298,11 @@ export default function PracticePage() {
       !hasStarted &&
       (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')
     ) {
-      setHasStarted(true)
-      setOverlayDismissed(true)
-      if (!startTimeRef.current) startTimeRef.current = Date.now()
-
-      // backend start on first interaction
-      ensureBackendSessionStarted()
+      beginSessionIfNeeded()
     }
 
     if (doneExact) {
-      if (e.key === ' ' || e.key === 'ArrowRight') {
-        e.preventDefault()
-        advance()
-      }
+      e.preventDefault()
       return
     }
 
@@ -375,9 +313,11 @@ export default function PracticePage() {
 
     if (e.key === 'Backspace') {
       if (typed.length > 0) {
-        setTyped((t) => t.slice(0, -1))
+        setTyped((prev) => prev.slice(0, -1))
         setFixedCount((n) => n + 1)
       }
+      pendingAdvanceRef.current = false
+      autoAdvanceLockRef.current = false
       e.preventDefault()
       return
     }
@@ -387,19 +327,24 @@ export default function PracticePage() {
       return
     }
 
+    let nextValue = typed
+
     if (e.key === 'Enter') {
+      nextValue = typed + '\n'
       if (expectedChar !== '\n') setWrongCount((n) => n + 1)
-      setTyped((t) => t + '\n')
+      setTyped(nextValue)
       e.preventDefault()
+    } else if (e.key.length === 1) {
+      nextValue = typed + e.key
+      if (expectedChar !== e.key) setWrongCount((n) => n + 1)
+      setTyped(nextValue)
+      e.preventDefault()
+    } else {
       return
     }
 
-    if (e.key.length !== 1) return
-
-    if (expectedChar !== e.key) setWrongCount((n) => n + 1)
-
-    setTyped((t) => t + e.key)
-    e.preventDefault()
+    const completedNow = normalizePromptText(nextValue) === target
+    pendingAdvanceRef.current = completedNow
   }
 
   return (
@@ -419,11 +364,9 @@ export default function PracticePage() {
             <div className="practice-sub">
               Mini-lesson: <b>{lesson.label ?? lesson.chunk}</b>{' '}
               <span style={{ opacity: 0.7 }}>
-                (Step {targetIndex + 1}/{targets.length})
+                (Prompt {safePromptIndex + 1}/{prompts.length})
               </span>
-              {lesson.targetsByTier && (
-                <span style={{ opacity: 0.7 }}> — Tier {tier}</span>
-              )}
+              <span style={{ opacity: 0.7 }}> — Continuous Practice</span>
             </div>
 
             <div className="practice-rules">
@@ -440,24 +383,6 @@ export default function PracticePage() {
             <Link to="/lessons" className="practice-back">
               ← Back
             </Link>
-
-            {/* Debug / UX helper: reset tier+streak for current step */}
-            <button
-              type="button"
-              className="practice-reset"
-              onClick={() => clearTierAndStreak()}
-              title="Reset tier and streak for this step"
-              style={{
-                marginLeft: 12,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid rgba(0,0,0,0.15)',
-                background: 'transparent',
-                cursor: 'pointer',
-              }}
-            >
-              Reset Tier
-            </button>
           </div>
         </div>
 
@@ -467,24 +392,10 @@ export default function PracticePage() {
               <div
                 className="start-overlay"
                 onMouseDown={() => {
-                  setHasStarted(true)
-                  setOverlayDismissed(true)
-                  if (!startTimeRef.current) startTimeRef.current = Date.now()
-
-                  // backend start on overlay click
-                  ensureBackendSessionStarted()
-
-                  focusInput()
+                  beginSessionIfNeeded()
                 }}
                 onClick={() => {
-                  setHasStarted(true)
-                  setOverlayDismissed(true)
-                  if (!startTimeRef.current) startTimeRef.current = Date.now()
-
-                  // backend start on overlay click
-                  ensureBackendSessionStarted()
-
-                  focusInput()
+                  beginSessionIfNeeded()
                 }}
                 role="presentation"
                 aria-hidden="true"
@@ -519,10 +430,10 @@ export default function PracticePage() {
             Fixed: <b className="fixed">{fixedCount}</b>
           </span>
 
-          {doneExact && (
-            <span className="done-hint">
-              Done — press <b>Space</b> or <b>→</b> for next
-            </span>
+          {doneExact && <span className="done-hint">Nice — continuing…</span>}
+
+          {hasCompletedFirstCycle && (
+            <span className="done-hint">First full cycle complete</span>
           )}
         </div>
 
@@ -531,21 +442,10 @@ export default function PracticePage() {
             <Keyboard expected={expectedChar} />
           </div>
         )}
-
-        {doneExact && (
-          <div className="next-row">
-            <button className="btn-primary" onClick={advance}>
-              Next (Space / →)
-            </button>
-          </div>
-        )}
       </main>
     </div>
   )
 }
-
-// ------- Below here: keep your existing components unchanged -------
-// Included here for completeness if you need a single-file paste.
 
 function ChunkGrid({ target, typed }) {
   const lines = target.split('\n')
@@ -600,7 +500,7 @@ function Keyboard({ expected }) {
     <div className="keyboard">
       {KEY_ROWS.map((row, idx) => (
         <div className="key-row" key={idx}>
-          {row.map((k) => {
+          {row.map((k, i) => {
             const isBig = ['Backspace', 'Tab', 'Caps', 'Enter', 'Shift'].includes(k)
             const isSpace = k === 'Space'
             const active =
@@ -610,7 +510,7 @@ function Keyboard({ expected }) {
 
             return (
               <div
-                key={k}
+                key={`${k}-${idx}-${i}`}
                 className={`key ${isBig ? 'big' : ''} ${isSpace ? 'space' : ''} ${active ? 'active' : ''}`}
               >
                 {k}
