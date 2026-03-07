@@ -15,7 +15,7 @@ app.include_router(practice_router)
 # Middleware for the session
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+    secret_key=os.getenv("SECRET_KEY", "your-secret-key-change-in-production"),
     same_site="none",
     https_only=True,
 )
