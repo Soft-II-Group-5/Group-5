@@ -385,63 +385,85 @@ export default function PracticePage() {
   }
 
   function onKeyDown(e) {
-    if (
-      !hasStarted &&
-      (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')
-    ) {
-      beginSessionIfNeeded()
-    }
-
-    if (doneExact) {
-      e.preventDefault()
-      return
-    }
-
-    if (typed.length >= target.length && e.key !== 'Backspace') {
-      e.preventDefault()
-      return
-    }
-
-    if (e.key === 'Backspace') {
-      if (typed.length > 0) {
-        setTyped((prev) => prev.slice(0, -1))
-        setFixedCount((n) => n + 1)
-      }
-      autoAdvanceLockRef.current = false
-      e.preventDefault()
-      return
-    }
-
+    if (!target) return
+  
+    // ---------------------------
+    // TAB SUPPORT (2 spaces)
+    // ---------------------------
     if (e.key === 'Tab') {
       e.preventDefault()
+  
+      const tabText = '  ' // 2 spaces
+  
+      if (typed.length + tabText.length <= target.length) {
+        let nextValue = typed
+        let nextWrongCount = wrongCount
+  
+        for (let i = 0; i < tabText.length; i += 1) {
+          const nextChar = tabText[i]
+          const expectedChar = target[typed.length + i]
+  
+          nextValue += nextChar
+  
+          if (expectedChar !== nextChar) {
+            nextWrongCount += 1
+          }
+        }
+  
+        if (nextWrongCount !== wrongCount) {
+          setWrongCount(nextWrongCount)
+        }
+  
+        setTyped(nextValue)
+  
+        if (!typingStartRef.current) {
+          typingStartRef.current = Date.now()
+        }
+      }
+  
       return
     }
-
-    let nextValue = typed
-    let nextWrongCount = wrongCount
-
-    if (e.key === 'Enter') {
-      nextValue = typed + '\n'
-      if (expectedChar !== '\n') {
-        nextWrongCount = wrongCount + 1
-        setWrongCount(nextWrongCount)
-      }
-      setTyped(nextValue)
+  
+    // ---------------------------
+    // BACKSPACE SUPPORT
+    // ---------------------------
+    if (e.key === 'Backspace') {
       e.preventDefault()
-    } else if (e.key.length === 1) {
-      nextValue = typed + e.key
-      if (expectedChar !== e.key) {
-        nextWrongCount = wrongCount + 1
-        setWrongCount(nextWrongCount)
+  
+      if (typed.length === 0) return
+  
+      const removedChar = typed[typed.length - 1]
+      const expectedChar = target[typed.length - 1]
+  
+      if (removedChar !== expectedChar) {
+        setFixedCount((v) => v + 1)
       }
-      setTyped(nextValue)
-      e.preventDefault()
-    } else {
+  
+      setTyped(typed.slice(0, -1))
       return
     }
-
-    if (!typingStartRef.current) {
-      typingStartRef.current = Date.now()
+  
+    // ---------------------------
+    // NORMAL CHARACTER INPUT
+    // ---------------------------
+    if (e.key.length === 1) {
+      e.preventDefault()
+  
+      if (typed.length >= target.length) return
+  
+      const expectedChar = target[typed.length]
+  
+      if (e.key !== expectedChar) {
+        setWrongCount((v) => v + 1)
+      }
+  
+      setTyped(typed + e.key)
+  
+      if (!typingStartRef.current) {
+        typingStartRef.current = Date.now()
+      }
+  
+      return
     }
   }
 
@@ -588,6 +610,48 @@ function ChunkGrid({ target, typed }) {
       return 0
     }
   
+    function getTokenClass(line, charIndex) {
+      const keywords = ['function', 'return', 'const', 'let', 'if', 'else', 'for', 'console', 'log']
+      const punctuationChars = '{}()[];,.+-=*/<>!&|'
+  
+      for (const keyword of keywords) {
+        const before = charIndex === 0 ? ' ' : line[charIndex - 1]
+        const slice = line.slice(charIndex, charIndex + keyword.length)
+        const after = line[charIndex + keyword.length] ?? ' '
+  
+        const beforeOk = !/[A-Za-z0-9_$]/.test(before)
+        const afterOk = !/[A-Za-z0-9_$]/.test(after)
+  
+        if (slice === keyword && beforeOk && afterOk) return ' keyword'
+      }
+  
+      if (/\d/.test(line[charIndex])) return ' number'
+      if (punctuationChars.includes(line[charIndex])) return ' punctuation'
+  
+      return ''
+    }
+  
+    function getStringMask(line) {
+      const mask = Array(line.length).fill(false)
+      let quote = null
+  
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i]
+  
+        if (!quote && (ch === '"' || ch === "'" || ch === '`')) {
+          quote = ch
+          mask[i] = true
+        } else if (quote) {
+          mask[i] = true
+          if (ch === quote && line[i - 1] !== '\\') {
+            quote = null
+          }
+        }
+      }
+  
+      return mask
+    }
+  
     const currentLineIndex = getCurrentLineIndex()
   
     return (
@@ -598,6 +662,7 @@ function ChunkGrid({ target, typed }) {
           const isEmptyLine = line.length === 0
           const lineEndIndex = startIndex + line.length
           const cursorOnEmptyLine = isEmptyLine && typed.length === startIndex
+          const stringMask = getStringMask(line)
   
           const lineFinished =
             !isEmptyLine &&
@@ -612,7 +677,7 @@ function ChunkGrid({ target, typed }) {
           return (
             <div
               key={lineIdx}
-              className={`type-line ${showNextLineIndicator ? 'next-line-active' : ''}`}
+              className={`type-line ${showNextLineIndicator ? 'next-line-active' : ''} ${lineFinished ? 'line-finished-row' : ''}`}
             >
               <div
                 className={`line-number ${showNextLineIndicator ? 'line-number-next' : ''}`}
@@ -637,14 +702,15 @@ function ChunkGrid({ target, typed }) {
                   chars.map((ch, i) => {
                     const idx = startIndex + i
                     const typedChar = typed[idx]
-                    let cls = 'char'
   
+                    let cls = 'char'
                     if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
                     else if (idx === typed.length) cls += ' cursor'
   
-                    if (lineFinished && i === chars.length - 1) {
-                      cls += ' line-complete'
-                    }
+                    if (stringMask[i]) cls += ' string'
+                    else cls += getTokenClass(line, i)
+  
+                    if (lineFinished) cls += ' line-complete-flash'
   
                     return (
                       <span key={i} className={cls}>
@@ -652,6 +718,12 @@ function ChunkGrid({ target, typed }) {
                       </span>
                     )
                   })
+                )}
+  
+                {lineFinished && (
+                  <span className="line-complete-badge" aria-hidden="true">
+                    ✔
+                  </span>
                 )}
               </div>
             </div>
