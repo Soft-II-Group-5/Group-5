@@ -10,29 +10,25 @@ export const UNITS = [
           backendLessonId: '8b8fa262-d683-4f9c-a20d-793b1d25b557',
           label: 'Build a function (adaptive)',
           learnText:
-            'Start with the function keyword, then grow into a full function header.',
+            'Start with the function keyword, then build real JavaScript function declarations.',
           targetsByTier: {
             1: [
-              'function',
-              'function hi',
-              'function run',
-              'function greet',
-              'function hello',
-              'function hello()',
-              'function greet()',
+              'function hello() {}',
+              'function greet() {}',
+              'function run() {}',
+              'function code() {}',
             ],
             2: [
-              'function hello() { }',
-              'function greet() { }',
-              'function run() { }',
-              'function hi() { }',
-              'function code() { }',
+              'function hello() {\n  return "Hello";\n}',
+              'function greet() {\n  return "Hi";\n}',
+              'function run() {\n  return 1;\n}',
+              'function code() {\n  return "Code";\n}',
             ],
             3: [
-              'function hello() { return "Hello"; }',
-              'function greet() { return "Hi"; }',
-              'function run() { return 1; }',
-              'function code() { return "Code"; }',
+              'function hello() {\n  return "Hello";\n}\n\nhello();',
+              'function greet() {\n  return "Hi";\n}\n\ngreet();',
+              'function run() {\n  return 1;\n}\n\nrun();',
+              'function code() {\n  return "Code";\n}\n\ncode();',
             ],
           },
           tierRules: {
@@ -47,24 +43,23 @@ export const UNITS = [
           backendLessonId: '36bb7f66-b6db-4939-94b9-d010884520e9',
           label: 'Call the function (adaptive)',
           learnText:
-            'Practice calling functions. Higher tiers add setup and repeated calls.',
+            'Practice calling functions in real code blocks, not isolated fragments.',
           targetsByTier: {
             1: [
               'hello();',
               'greet();',
               'run();',
-              'hi();',
               'code();',
             ],
             2: [
-              'function hello() { return "Hello"; }\nhello();',
-              'function greet() { return "Hi"; }\ngreet();',
-              'function run() { return 1; }\nrun();',
+              'function hello() {\n  return "Hello";\n}\n\nhello();',
+              'function greet() {\n  return "Hi";\n}\n\ngreet();',
+              'function run() {\n  return 1;\n}\n\nrun();',
             ],
             3: [
-              'function hello() { return "Hello"; }\nhello();\nhello();',
-              'function greet() { return "Hi"; }\ngreet();\ngreet();',
-              'function run() { return 1; }\nrun();\nrun();',
+              'function hello() {\n  return "Hello";\n}\n\nhello();\nhello();',
+              'function greet() {\n  return "Hi";\n}\n\ngreet();\ngreet();',
+              'function run() {\n  return 1;\n}\n\nrun();\nrun();',
             ],
           },
         },
@@ -76,19 +71,19 @@ export const UNITS = [
             'Add parameters to functions and return values using those inputs.',
           targetsByTier: {
             1: [
-              'function greet(name) { }',
-              'function hello(user) { }',
-              'function print(msg) { }',
+              'function greet(name) {}',
+              'function hello(user) {}',
+              'function print(msg) {}',
             ],
             2: [
-              'function greet(name) { return "Hi " + name; }',
-              'function hello(user) { return "Hello " + user; }',
-              'function print(msg) { return msg; }',
+              'function greet(name) {\n  return "Hi " + name;\n}',
+              'function hello(user) {\n  return "Hello " + user;\n}',
+              'function print(msg) {\n  return msg;\n}',
             ],
             3: [
-              'function greet(name) { return "Hi " + name; }\ngreet("Rustic");',
-              'function hello(user) { return "Hello " + user; }\nhello("Logan");',
-              'function print(msg) { return msg; }\nprint("Code");',
+              'function greet(name) {\n  return "Hi " + name;\n}\n\ngreet("Rustic");',
+              'function hello(user) {\n  return "Hello " + user;\n}\n\nhello("Logan");',
+              'function print(msg) {\n  return msg;\n}\n\nprint("Code");',
             ],
           },
         },
@@ -97,21 +92,21 @@ export const UNITS = [
           backendLessonId: '75511eb8-551f-431f-8506-980bdd77bd23',
           label: 'Mini program (adaptive)',
           learnText:
-            'Combine function creation and calls into short programs.',
+            'Combine function creation and calls into short JavaScript programs.',
           targetsByTier: {
             1: [
-              'function hello() { return "Hello"; }\nhello();',
-              'function greet() { return "Hi"; }\ngreet();',
+              'function hello() {\n  return "Hello";\n}\n\nhello();',
+              'function greet() {\n  return "Hi";\n}\n\ngreet();',
             ],
             2: [
-              'function hello() { return "Hello"; }\nhello();\nhello();',
-              'function greet() { return "Hi"; }\ngreet();\ngreet();',
-              'function run() { return 1; }\nrun();\nrun();',
+              'function hello() {\n  return "Hello";\n}\n\nhello();\nhello();',
+              'function greet() {\n  return "Hi";\n}\n\ngreet();\ngreet();',
+              'function run() {\n  return 1;\n}\n\nrun();\nrun();',
             ],
             3: [
-              'function hello() { return "Hello"; }\nhello();\nhello();\nhello();',
-              'function greet(name) { return "Hi " + name; }\ngreet("Rustic");\ngreet("Logan");',
-              'function run() { return 1; }\nrun();\nrun();\nrun();',
+              'function hello() {\n  return "Hello";\n}\n\nhello();\nhello();\nhello();',
+              'function greet(name) {\n  return "Hi " + name;\n}\n\ngreet("Rustic");\ngreet("Logan");',
+              'function run() {\n  return 1;\n}\n\nrun();\nrun();\nrun();',
             ],
           },
         },
@@ -120,22 +115,22 @@ export const UNITS = [
           backendLessonId: '1f010001-1111-4111-8111-111111111111',
           label: 'Return values (adaptive)',
           learnText:
-            'Focus on return statements inside functions.',
+            'Focus on return statements inside real function bodies.',
           targetsByTier: {
             1: [
-              'return "Hello";',
-              'return 1;',
-              'return name;',
+              'function hello() {\n  return "Hello";\n}',
+              'function getScore() {\n  return 1;\n}',
+              'function getName() {\n  return "Rustic";\n}',
             ],
             2: [
-              'function hello() { return "Hello"; }',
-              'function getScore() { return 1; }',
-              'function getName() { return "Rustic"; }',
+              'function greet(name) {\n  return "Hi " + name;\n}',
+              'function getScore() {\n  return 10 + 5;\n}',
+              'function getLives() {\n  return 3;\n}',
             ],
             3: [
-              'function greet(name) { return "Hi " + name; }',
-              'function getScore() { return 10 + 5; }',
-              'function getLives() { return 3; }',
+              'function greet(name) {\n  return "Hi " + name;\n}\n\ngreet("Rustic");',
+              'function getScore() {\n  return 10 + 5;\n}\n\ngetScore();',
+              'function getLives() {\n  return 3;\n}\n\ngetLives();',
             ],
           },
         },
@@ -161,16 +156,13 @@ export const UNITS = [
           backendLessonId: '1ea1251b-bb01-4bf0-9484-28aff13dc59e',
           label: 'Make a variable (adaptive)',
           learnText:
-            'Build variables in small chunks, then combine them into longer lines.',
+            'Build variable declarations into real JavaScript snippets.',
           targetsByTier: {
             1: [
-              'let',
-              'let score',
-              'let name',
-              'let score =',
-              'let name =',
-              'let username = "Rustic";',
+              'let score = 0;',
+              'let name = "Rustic";',
               'let level = 1;',
+              'let mode = "easy";',
             ],
             2: [
               'let username = "Rustic";\nlet score = 0;',
@@ -189,23 +181,22 @@ export const UNITS = [
           backendLessonId: '378b809d-a472-40d1-ab80-2621e647f3c5',
           label: 'Numbers (adaptive)',
           learnText:
-            'Practice number variables and updating them.',
+            'Practice number variables and updating them in actual code.',
           targetsByTier: {
             1: [
-              'let score = 0;',
-              'let lives = 3;',
-              'score = score + 1;',
-              'lives = lives - 1;',
-            ],
-            2: [
               'let score = 0;\nscore = score + 1;',
               'let lives = 3;\nlives = lives - 1;',
               'let points = 10;\npoints = points + 5;',
             ],
-            3: [
+            2: [
               'let score = 0;\nscore = score + 1;\nscore = score + 1;',
               'let lives = 3;\nlives = lives - 1;\nlives = lives - 1;',
               'let points = 10;\npoints = points + 5;\npoints = points + 5;',
+            ],
+            3: [
+              'let score = 0;\nscore = score + 1;\nscore = score + 1;\nconsole.log(score);',
+              'let lives = 3;\nlives = lives - 1;\nlives = lives - 1;\nconsole.log(lives);',
+              'let points = 10;\npoints = points + 5;\npoints = points + 5;\nconsole.log(points);',
             ],
           },
         },
@@ -249,8 +240,8 @@ export const UNITS = [
               'let player = "Logan";\nlet lives = 3;\nlives = lives - 1;\nlives = lives - 1;',
             ],
             3: [
-              'const bonus = 5;\nlet points = 10;\npoints = points + bonus;\npoints = points + bonus;',
-              'let username = "Rustic";\nlet score = 0;\nscore = score + 1;\nscore = score + 1;\nscore = score + 1;',
+              'const bonus = 5;\nlet points = 10;\npoints = points + bonus;\npoints = points + bonus;\nconsole.log(points);',
+              'let username = "Rustic";\nlet score = 0;\nscore = score + 1;\nscore = score + 1;\nscore = score + 1;\nconsole.log(score);',
             ],
           },
         },
@@ -262,19 +253,19 @@ export const UNITS = [
             'Work with both string and numeric variables in the same lesson.',
           targetsByTier: {
             1: [
-              'let username = "Rustic";',
-              'let score = 0;',
-              'let mode = "easy";',
-            ],
-            2: [
               'let username = "Rustic";\nlet score = 0;',
               'let player = "Logan";\nlet level = 1;',
               'let mode = "easy";\nlet points = 10;',
             ],
+            2: [
+              'let username = "Rustic";\nlet score = 0;\nconsole.log(username);',
+              'let player = "Logan";\nlet level = 1;\nconsole.log(level);',
+              'let mode = "easy";\nlet points = 10;\nconsole.log(points);',
+            ],
             3: [
-              'let username = "Rustic";\nlet score = 0;\nscore = score + 1;',
-              'let player = "Logan";\nlet level = 1;\nlevel = level + 1;',
-              'let mode = "easy";\nlet points = 10;\npoints = points + 5;',
+              'let username = "Rustic";\nlet score = 0;\nscore = score + 1;\nconsole.log(score);',
+              'let player = "Logan";\nlet level = 1;\nlevel = level + 1;\nconsole.log(level);',
+              'let mode = "easy";\nlet points = 10;\npoints = points + 5;\nconsole.log(points);',
             ],
           },
         },
@@ -300,22 +291,21 @@ export const UNITS = [
           backendLessonId: '61af8e09-7372-4fac-8688-816db04e99c6',
           label: 'If basics (adaptive)',
           learnText:
-            'Start with simple if syntax, then add bodies and more structure.',
+            'Start with simple if syntax, then add bodies and real JavaScript structure.',
           targetsByTier: {
             1: [
-              'if',
-              'if (score >= 10) { }',
-              'if (lives > 0) { }',
-              'if (ready === true) { }',
+              'if (score >= 10) {}',
+              'if (lives > 0) {}',
+              'if (ready === true) {}',
             ],
             2: [
-              'if (score >= 10) {\n  // TODO\n}',
-              'if (lives > 0) {\n  // TODO\n}',
-              'if (ready === true) {\n  // TODO\n}',
+              'if (score >= 10) {\n  console.log("win");\n}',
+              'if (lives > 0) {\n  console.log("keep going");\n}',
+              'if (ready === true) {\n  console.log("start");\n}',
             ],
             3: [
-              'if (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
-              'if (lives > 0) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+              'if (score >= 10) {\n  console.log("win");\n} else {\n  console.log("try again");\n}',
+              'if (lives > 0) {\n  console.log("keep going");\n} else {\n  console.log("game over");\n}',
             ],
           },
         },
@@ -324,19 +314,19 @@ export const UNITS = [
           backendLessonId: '7eda3673-a238-4a5a-8cc6-6156eb08a9e0',
           label: 'If + else (adaptive)',
           learnText:
-            'Practice branching between two outcomes.',
+            'Practice branching between two outcomes with full code blocks.',
           targetsByTier: {
             1: [
-              'if (score >= 10) { }\nelse { }',
-              'if (lives > 0) { }\nelse { }',
+              'if (score >= 10) {} else {}',
+              'if (lives > 0) {} else {}',
             ],
             2: [
-              'if (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
-              'if (lives > 0) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+              'if (score >= 10) {\n  console.log("win");\n} else {\n  console.log("try again");\n}',
+              'if (lives > 0) {\n  console.log("keep going");\n} else {\n  console.log("game over");\n}',
             ],
             3: [
-              'let score = 9;\nif (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
-              'let lives = 0;\nif (lives > 0) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+              'let score = 9;\nif (score >= 10) {\n  console.log("win");\n} else {\n  console.log("try again");\n}',
+              'let lives = 0;\nif (lives > 0) {\n  console.log("keep going");\n} else {\n  console.log("game over");\n}',
             ],
           },
         },
@@ -348,18 +338,18 @@ export const UNITS = [
             'Use exact comparison for strings and values.',
           targetsByTier: {
             1: [
-              'if (username === "Rustic") { }',
-              'if (mode === "easy") { }',
-              'if (name === "Logan") { }',
+              'if (username === "Rustic") {}',
+              'if (mode === "easy") {}',
+              'if (name === "Logan") {}',
             ],
             2: [
-              'if (username === "Rustic") {\n  // TODO\n}',
-              'if (mode === "easy") {\n  // TODO\n}',
-              'if (name === "Logan") {\n  // TODO\n}',
+              'if (username === "Rustic") {\n  console.log("welcome");\n}',
+              'if (mode === "easy") {\n  console.log("easy mode");\n}',
+              'if (name === "Logan") {\n  console.log("hello");\n}',
             ],
             3: [
-              'if (username === "Rustic" && score >= 10) {\n  // TODO\n}',
-              'if (mode === "easy" && lives > 0) {\n  // TODO\n}',
+              'if (username === "Rustic" && score >= 10) {\n  console.log("high score");\n}',
+              'if (mode === "easy" && lives > 0) {\n  console.log("ready");\n}',
             ],
           },
         },
@@ -371,16 +361,16 @@ export const UNITS = [
             'Set variables first, then use them in branching logic.',
           targetsByTier: {
             1: [
-              'let score = 9;\nif (score >= 10) { }\nelse { }',
-              'let lives = 0;\nif (lives > 0) { }\nelse { }',
+              'let score = 9;\nif (score >= 10) {} else {}',
+              'let lives = 0;\nif (lives > 0) {} else {}',
             ],
             2: [
-              'let score = 9;\nif (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
-              'let lives = 0;\nif (lives > 0) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+              'let score = 9;\nif (score >= 10) {\n  console.log("win");\n} else {\n  console.log("try again");\n}',
+              'let lives = 0;\nif (lives > 0) {\n  console.log("keep going");\n} else {\n  console.log("game over");\n}',
             ],
             3: [
-              'let username = "Rustic";\nlet score = 9;\nif (score >= 10) {\n  // TODO\n}\nelse {\n  // TODO\n}',
-              'let mode = "easy";\nlet lives = 0;\nif (lives > 0) {\n  // TODO\n}\nelse {\n  // TODO\n}',
+              'let username = "Rustic";\nlet score = 9;\nif (score >= 10) {\n  console.log("win");\n} else {\n  console.log("try again");\n}',
+              'let mode = "easy";\nlet lives = 0;\nif (lives > 0) {\n  console.log("keep going");\n} else {\n  console.log("game over");\n}',
             ],
           },
         },
@@ -392,16 +382,16 @@ export const UNITS = [
             'Combine two conditions for more specific logic.',
           targetsByTier: {
             1: [
-              'if (score >= 10 && lives > 0) { }',
-              'if (ready === true && mode === "easy") { }',
+              'if (score >= 10 && lives > 0) {}',
+              'if (ready === true && mode === "easy") {}',
             ],
             2: [
-              'if (score >= 10 && lives > 0) {\n  // TODO\n}',
-              'if (ready === true && mode === "easy") {\n  // TODO\n}',
+              'if (score >= 10 && lives > 0) {\n  console.log("continue");\n}',
+              'if (ready === true && mode === "easy") {\n  console.log("start");\n}',
             ],
             3: [
-              'let score = 10;\nlet lives = 1;\nif (score >= 10 && lives > 0) {\n  // TODO\n}',
-              'let ready = true;\nlet mode = "easy";\nif (ready === true && mode === "easy") {\n  // TODO\n}',
+              'let score = 10;\nlet lives = 1;\nif (score >= 10 && lives > 0) {\n  console.log("continue");\n}',
+              'let ready = true;\nlet mode = "easy";\nif (ready === true && mode === "easy") {\n  console.log("start");\n}',
             ],
           },
         },
@@ -430,17 +420,16 @@ export const UNITS = [
             'Learn the shape of a for loop, then grow into full loop bodies.',
           targetsByTier: {
             1: [
-              'for',
-              'for (let i = 0; i < 5; i = i + 1) { }',
-              'for (let x = 0; x < 3; x = x + 1) { }',
+              'for (let i = 0; i < 5; i = i + 1) {}',
+              'for (let x = 0; x < 3; x = x + 1) {}',
             ],
             2: [
-              'for (let i = 0; i < 5; i = i + 1) {\n  // TODO\n}',
-              'for (let x = 0; x < 3; x = x + 1) {\n  // TODO\n}',
+              'for (let i = 0; i < 5; i = i + 1) {\n  console.log(i);\n}',
+              'for (let x = 0; x < 3; x = x + 1) {\n  console.log(x);\n}',
             ],
             3: [
-              'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  // TODO\n}',
-              'let lives = 3;\nfor (let x = 0; x < 3; x = x + 1) {\n  // TODO\n}',
+              'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}',
+              'let lives = 3;\nfor (let x = 0; x < 3; x = x + 1) {\n  lives = lives - 1;\n}',
             ],
           },
         },
@@ -460,8 +449,8 @@ export const UNITS = [
               'let lives = 3;\nfor (let x = 0; x < 3; x = x + 1) {\n  lives = lives - 1;\n}',
             ],
             3: [
-              'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}\nscore = score + 1;',
-              'let lives = 3;\nfor (let x = 0; x < 3; x = x + 1) {\n  lives = lives - 1;\n}\nlives = lives - 1;',
+              'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}\nconsole.log(score);',
+              'let lives = 3;\nfor (let x = 0; x < 3; x = x + 1) {\n  lives = lives - 1;\n}\nconsole.log(lives);',
             ],
           },
         },
@@ -481,8 +470,8 @@ export const UNITS = [
               'let points = 10;\nfor (let x = 0; x < 3; x = x + 1) {\n  points = points + 5;\n}',
             ],
             3: [
-              'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}\nscore = score + 1;\nscore = score + 1;',
-              'let points = 10;\nfor (let x = 0; x < 3; x = x + 1) {\n  points = points + 5;\n}\npoints = points + 5;',
+              'let score = 0;\nfor (let i = 0; i < 5; i = i + 1) {\n  score = score + 1;\n}\nscore = score + 1;\nconsole.log(score);',
+              'let points = 10;\nfor (let x = 0; x < 3; x = x + 1) {\n  points = points + 5;\n}\npoints = points + 5;\nconsole.log(points);',
             ],
           },
         },

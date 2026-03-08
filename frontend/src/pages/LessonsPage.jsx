@@ -153,173 +153,287 @@ export default function LessonsPage() {
       <NavBar />
 
       <div className="lessons-shell">
-        <div className="lessons-topline">
+        <div className="lessons-topbar">
+          <div>
+            <h1 className="lessons-title">Lessons</h1>
+            <p className="lessons-subtitle">
+              Pick up where you left off, review a category, or jump into a final challenge.
+            </p>
+          </div>
+
           <button onClick={toggleLocks} className="unlock-toggle">
             {locksDisabled ? 'Enable Locks' : 'Disable Locks (Dev)'}
           </button>
         </div>
 
-        <h1 className="lessons-title">Lessons</h1>
+        <div className="lessons-layout">
+          <section className="lessons-main">
+            <div className="category-row">
+              {UNITS.map((unit, unitIndex) => {
+                const prevUnit = UNITS[unitIndex - 1]
 
-        <div className="lessons-metrics" style={{ marginBottom: '1.25rem' }}>
-          {isLoading && <div className="tile-muted">Loading stats…</div>}
+                const unitLocked =
+                  !locksDisabled &&
+                  unitIndex > 0 &&
+                  prevUnit &&
+                  !isUnitCompleted(prevUnit, progress)
 
-          {!isLoading && showGlobalError && (
-            <div style={{ color: 'red' }}>Practice data is temporarily unavailable.</div>
-          )}
+                const nextLesson = getNextIncompleteLesson(unit, progress)
 
-          {!statsLoading && stats && (
-            <>
-              <div className="tile-muted">Total Sessions: {stats.total_sessions ?? 0}</div>
-              <div className="tile-muted">
-                Avg WPM: {stats.avg_wpm == null ? '—' : Number(stats.avg_wpm).toFixed(1)}
-              </div>
-              <div className="tile-muted">
-                Best WPM: {stats.best_wpm == null ? '—' : Number(stats.best_wpm).toFixed(1)}
-              </div>
-              <div className="tile-muted">
-                Avg Accuracy: {formatAccuracy(stats.avg_accuracy)}
-              </div>
-              <div className="tile-muted">
-                Best Accuracy: {formatAccuracy(stats.best_accuracy)}
-              </div>
-              <div className="tile-muted">
-                Total Time: {stats.total_time_seconds ?? 0}s
-              </div>
-              <div className="tile-muted">
-                Last 30 Days: {stats.last_30_days_time_seconds ?? 0}s
-              </div>
-              <div className="tile-muted">
-                Most Practiced:{' '}
-                {stats.most_practiced_lesson_id
-                  ? LESSON_MAP[stats.most_practiced_lesson_id]?.label ?? 'Lesson'
-                  : '—'}
-              </div>
-            </>
-          )}
+                const completedCount = unit.lessons.filter((lesson) =>
+                  isCompleted(progress, unit.id, lesson.stepId)
+                ).length
 
-          {!statsLoading && !stats && !statsError && (
-            <div className="tile-muted">No stats yet.</div>
-          )}
-        </div>
+                const totalCount = unit.lessons.length
+                const unitComplete = isUnitCompleted(unit, progress)
 
-        {sessionsError && !statsError && (
-          <div className="tile-muted" style={{ marginBottom: '1rem' }}>
-            Recent sessions could not be loaded right now.
-          </div>
-        )}
+                const categoryLink = unitLocked
+                  ? null
+                  : nextLesson
+                  ? `/practice/${unit.id}/${nextLesson.stepId}`
+                  : `/challenge/${unit.id}`
 
-        {UNITS.map((unit, unitIndex) => {
-          const prevUnit = UNITS[unitIndex - 1]
+                const categoryFocus = nextLesson
+                  ? shortText(nextLesson.learnText || nextLesson.label || unit.title, 120)
+                  : `All ${unit.title} lessons completed.`
 
-          const unitLocked =
-            !locksDisabled &&
-            unitIndex > 0 &&
-            prevUnit &&
-            !isUnitCompleted(prevUnit, progress)
+                const categoryTile = (
+                  <div className={`lesson-card tall ${unitLocked ? 'locked' : ''}`}>
+                    <div className="lesson-card-top">
+                      <div className="lesson-badge">{unit.id}</div>
+                      <div className="lesson-status">
+                        {unitLocked
+                          ? 'Locked'
+                          : unitComplete
+                          ? 'Completed'
+                          : completedCount > 0
+                          ? 'In Progress'
+                          : 'Start'}
+                      </div>
+                    </div>
 
-          const nextLesson = getNextIncompleteLesson(unit, progress)
+                    <div className="lesson-card-body">
+                      <h2 className="lesson-card-title">{unit.title}</h2>
+                      <p className="lesson-card-text">{categoryFocus}</p>
+                    </div>
 
-          const completedCount = unit.lessons.filter((lesson) =>
-            isCompleted(progress, unit.id, lesson.stepId)
-          ).length
-
-          const totalCount = unit.lessons.length
-
-          const unitComplete = isUnitCompleted(unit, progress)
-
-          const categoryLink = unitLocked
-            ? null
-            : nextLesson
-            ? `/practice/${unit.id}/${nextLesson.stepId}`
-            : `/challenge/${unit.id}`
-
-          const categoryFocus = nextLesson
-            ? shortText(nextLesson.learnText || nextLesson.label || unit.title)
-            : `All ${unit.title} lessons completed.`
-
-          const finalChallengeLocked = !locksDisabled && !unitComplete
-          const finalChallengeCompleted = isFinalChallengeCompleted(progress, unit.id)
-
-          const finalChallengeFocus = shortText(unit.finalChallenge?.prompt || '')
-
-          const categoryTile = (
-            <div className={`tile ${unitLocked ? 'locked' : ''}`}>
-              <div className="tile-num">{unit.id}</div>
-
-              <div className="tile-body">
-                <div className="tile-name">{unit.title}</div>
-
-                <div className="tile-focus">
-                  {categoryFocus}
-
-                  <div style={{ marginTop: 10, opacity: 0.8 }}>
-                    Progress: {completedCount}/{totalCount} lessons
+                    <div className="lesson-card-footer">
+                      <div className="lesson-progress-text">
+                        {completedCount}/{totalCount} lessons complete
+                      </div>
+                      <div className="lesson-progress-bar">
+                        <div
+                          className="lesson-progress-fill"
+                          style={{
+                            width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="lesson-action">
+                        {unitLocked
+                          ? 'Locked'
+                          : unitComplete
+                          ? 'Review / Challenge'
+                          : completedCount > 0
+                          ? 'Continue'
+                          : 'Start'}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )
 
-              <div className="tile-footer">
-                {unitLocked
-                  ? 'Locked'
-                  : unitComplete
-                  ? 'Review / Challenge'
-                  : completedCount > 0
-                  ? 'Continue'
-                  : 'Start'}
-              </div>
-            </div>
-          )
-
-          const challengeTile = (
-            <div className={`tile ${finalChallengeLocked ? 'locked' : ''}`}>
-              <div className="tile-num">★</div>
-
-              <div className="tile-body">
-                <div className="tile-name">
-                  {unit.finalChallenge?.label || 'Final Challenge'}
-                </div>
-
-                <div className="tile-focus">{finalChallengeFocus}</div>
-              </div>
-
-              <div className="tile-footer">
-                {finalChallengeLocked
-                  ? 'Finish category first'
-                  : finalChallengeCompleted
-                  ? 'Completed'
-                  : 'Start Challenge'}
-              </div>
-            </div>
-          )
-
-          return (
-            <section key={unit.id} style={{ marginBottom: '2rem' }}>
-              <h2 style={{ margin: '0 0 0.75rem', fontWeight: 900 }}>
-                {unit.title}
-              </h2>
-
-              <div className="lessons-grid">
-                {unitLocked ? (
-                  <div>{categoryTile}</div>
+                return unitLocked ? (
+                  <div key={unit.id}>{categoryTile}</div>
                 ) : (
-                  <Link className="tile-link" to={categoryLink}>
+                  <Link key={unit.id} className="tile-link" to={categoryLink}>
                     {categoryTile}
                   </Link>
-                )}
+                )
+              })}
+            </div>
 
-                {unit.finalChallenge &&
-                  (finalChallengeLocked ? (
-                    <div>{challengeTile}</div>
+            <section className="challenge-section">
+              <div className="challenge-header">
+                <h2 className="challenge-title">Final Challenges</h2>
+                <p className="challenge-subtitle">
+                  Finish a category, then test yourself with a full mini-project.
+                </p>
+              </div>
+
+              <div className="challenge-row">
+                {UNITS.map((unit, unitIndex) => {
+                  const prevUnit = UNITS[unitIndex - 1]
+
+                  const unitLocked =
+                    !locksDisabled &&
+                    unitIndex > 0 &&
+                    prevUnit &&
+                    !isUnitCompleted(prevUnit, progress)
+
+                  const unitComplete = isUnitCompleted(unit, progress)
+                  const finalChallengeLocked = unitLocked || (!locksDisabled && !unitComplete)
+                  const finalChallengeCompleted = isFinalChallengeCompleted(progress, unit.id)
+
+                  if (!unit.finalChallenge) return null
+
+                  const finalChallengeFocus = shortText(
+                    unit.finalChallenge?.prompt || '',
+                    95
+                  )
+
+                  const challengeTile = (
+                    <div
+                      className={`lesson-card challenge ${finalChallengeLocked ? 'locked' : ''}`}
+                    >
+                      <div className="lesson-card-top">
+                        <div className="lesson-badge star">★</div>
+                        <div className="lesson-status">
+                          {finalChallengeLocked
+                            ? 'Locked'
+                            : finalChallengeCompleted
+                            ? 'Completed'
+                            : 'Ready'}
+                        </div>
+                      </div>
+
+                      <div className="lesson-card-body">
+                        <h3 className="lesson-card-title">
+                          {unit.finalChallenge?.label || 'Final Challenge'}
+                        </h3>
+                        <div className="lesson-card-unit">{unit.title}</div>
+                        <p className="lesson-card-text">{finalChallengeFocus}</p>
+                      </div>
+
+                      <div className="lesson-card-footer">
+                        <div className="lesson-action">
+                          {finalChallengeLocked
+                            ? 'Finish category first'
+                            : finalChallengeCompleted
+                            ? 'Open Again'
+                            : 'Start Challenge'}
+                        </div>
+                      </div>
+                    </div>
+                  )
+
+                  return finalChallengeLocked ? (
+                    <div key={`challenge-${unit.id}`}>{challengeTile}</div>
                   ) : (
-                    <Link className="tile-link" to={`/challenge/${unit.id}`}>
+                    <Link
+                      key={`challenge-${unit.id}`}
+                      className="tile-link"
+                      to={`/challenge/${unit.id}`}
+                    >
                       {challengeTile}
                     </Link>
-                  ))}
+                  )
+                })}
               </div>
             </section>
-          )
-        })}
+          </section>
+
+          <aside className="stats-panel">
+            <div className="stats-card">
+              <h2 className="stats-title">Practice Stats</h2>
+
+              {isLoading && <div className="tile-muted">Loading stats…</div>}
+
+              {!isLoading && showGlobalError && (
+                <div className="stats-error">Practice data is temporarily unavailable.</div>
+              )}
+
+              {!statsLoading && stats && (
+                <div className="stats-list">
+                  <div className="stat-row">
+                    <span>Total Sessions</span>
+                    <strong>{stats.total_sessions ?? 0}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Avg WPM</span>
+                    <strong>
+                      {stats.avg_wpm == null ? '—' : Number(stats.avg_wpm).toFixed(1)}
+                    </strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Best WPM</span>
+                    <strong>
+                      {stats.best_wpm == null ? '—' : Number(stats.best_wpm).toFixed(1)}
+                    </strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Avg Accuracy</span>
+                    <strong>{formatAccuracy(stats.avg_accuracy)}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Best Accuracy</span>
+                    <strong>{formatAccuracy(stats.best_accuracy)}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Total Time</span>
+                    <strong>{stats.total_time_seconds ?? 0}s</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Last 30 Days</span>
+                    <strong>{stats.last_30_days_time_seconds ?? 0}s</strong>
+                  </div>
+                  <div className="stat-row stat-row-stack">
+                    <span>Most Practiced</span>
+                    <strong>
+                      {stats.most_practiced_lesson_id
+                        ? LESSON_MAP[stats.most_practiced_lesson_id]?.label ?? 'Lesson'
+                        : '—'}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              {!statsLoading && !stats && !statsError && (
+                <div className="tile-muted">No stats yet.</div>
+              )}
+            </div>
+
+            <div className="stats-card">
+              <h3 className="stats-title small">Recent Activity</h3>
+
+              {sessionsLoading && <div className="tile-muted">Loading recent sessions…</div>}
+
+              {!sessionsLoading && sessionsError && (
+                <div className="tile-muted">Recent sessions could not be loaded.</div>
+              )}
+
+              {!sessionsLoading && !sessionsError && sessions.length === 0 && (
+                <div className="tile-muted">No recent sessions yet.</div>
+              )}
+
+              {!sessionsLoading && !sessionsError && sessions.length > 0 && (
+                <div className="recent-list">
+                  {sessions.slice(0, 5).map((session, idx) => {
+                    const lessonMeta = session.lesson_id
+                      ? LESSON_MAP[session.lesson_id]
+                      : null
+
+                    return (
+                      <div className="recent-item" key={session.id || idx}>
+                        <div className="recent-top">
+                          <strong>{lessonMeta?.label || 'Practice Session'}</strong>
+                          <span>{lessonMeta?.unit || 'Lesson'}</span>
+                        </div>
+
+                        <div className="recent-meta">
+                          <span>
+                            WPM:{' '}
+                            {session.wpm == null ? '—' : Number(session.wpm).toFixed(1)}
+                          </span>
+                          <span>Accuracy: {formatAccuracy(session.accuracy)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
       </div>
     </>
   )

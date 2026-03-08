@@ -500,29 +500,42 @@ export default function PracticePage() {
         </div>
 
         <div className="type-area">
-          <div className={`type-box ${promptAnimating ? 'prompt-transition' : ''}`}>
-            {!overlayDismissed && typed.length === 0 && (
-              <div
-                className="start-overlay"
-                onMouseDown={() => {
-                  beginSessionIfNeeded()
-                }}
-                onClick={() => {
-                  beginSessionIfNeeded()
-                }}
-                role="presentation"
-                aria-hidden="true"
-              >
-                <div className="start-overlay-card">
-                  <div className="start-title">Click here to start typing</div>
-                  <div className="start-sub">
-                    Then type the <b>highlighted</b> character (spaces count)
+          <div className={`editor-shell ${promptAnimating ? 'prompt-transition' : ''}`}>
+            <div className="editor-topbar">
+              <div className="editor-dots">
+                <span className="dot red" />
+                <span className="dot yellow" />
+                <span className="dot green" />
+              </div>
+
+              <div className="editor-filename">lesson.js</div>
+              <div className="editor-language">JavaScript</div>
+            </div>
+
+            <div className="editor-body">
+              {!overlayDismissed && typed.length === 0 && (
+                <div
+                  className="start-overlay"
+                  onMouseDown={() => {
+                    beginSessionIfNeeded()
+                  }}
+                  onClick={() => {
+                    beginSessionIfNeeded()
+                  }}
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <div className="start-overlay-card">
+                    <div className="start-title">Open lesson.js and start typing</div>
+                    <div className="start-sub">
+                      Type the code exactly as shown to complete the lesson
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <ChunkGrid target={target} typed={typed} />
+              <ChunkGrid target={target} typed={typed} />
+            </div>
           </div>
 
           <input
@@ -561,41 +574,92 @@ export default function PracticePage() {
 }
 
 function ChunkGrid({ target, typed }) {
-  const lines = target.split('\n')
-  const lineStarts = lines.reduce((acc, line, i) => {
-    if (i === 0) acc.push(0)
-    else acc.push(acc[i - 1] + lines[i - 1].length + 1)
-    return acc
-  }, [])
-
-  return (
-    <div className="type-grid">
-      {lines.map((line, lineIdx) => {
-        const chars = line.split('')
-        const startIndex = lineStarts[lineIdx]
-
-        return (
-          <div key={lineIdx} className="type-line">
-            {chars.map((ch, i) => {
-              const idx = startIndex + i
-              const typedChar = typed[idx]
-              let cls = 'char'
-
-              if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
-              else if (idx === typed.length) cls += ' cursor'
-
-              return (
-                <span key={i} className={cls}>
-                  {ch === ' ' ? '\u00A0' : ch}
-                </span>
-              )
-            })}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+    const lines = target.split('\n')
+    const lineStarts = lines.reduce((acc, line, i) => {
+      if (i === 0) acc.push(0)
+      else acc.push(acc[i - 1] + lines[i - 1].length + 1)
+      return acc
+    }, [])
+  
+    function getCurrentLineIndex() {
+      for (let i = lines.length - 1; i >= 0; i -= 1) {
+        if (typed.length >= lineStarts[i]) return i
+      }
+      return 0
+    }
+  
+    const currentLineIndex = getCurrentLineIndex()
+  
+    return (
+      <div className="type-grid">
+        {lines.map((line, lineIdx) => {
+          const chars = line.split('')
+          const startIndex = lineStarts[lineIdx]
+          const isEmptyLine = line.length === 0
+          const lineEndIndex = startIndex + line.length
+          const cursorOnEmptyLine = isEmptyLine && typed.length === startIndex
+  
+          const lineFinished =
+            !isEmptyLine &&
+            typed.length >= lineEndIndex &&
+            typed.slice(startIndex, lineEndIndex) === line
+  
+          const showNextLineIndicator =
+            lineIdx === currentLineIndex + 1 &&
+            currentLineIndex < lines.length - 1 &&
+            typed.length === lineStarts[lineIdx]
+  
+          return (
+            <div
+              key={lineIdx}
+              className={`type-line ${showNextLineIndicator ? 'next-line-active' : ''}`}
+            >
+              <div
+                className={`line-number ${showNextLineIndicator ? 'line-number-next' : ''}`}
+              >
+                {lineIdx + 1}
+              </div>
+  
+              <div className="code-line">
+                {showNextLineIndicator && (
+                  <span className="next-line-indicator" aria-hidden="true">
+                    ↳
+                  </span>
+                )}
+  
+                {isEmptyLine ? (
+                  <span
+                    className={`char empty-line-marker ${cursorOnEmptyLine ? 'cursor' : ''}`}
+                  >
+                    {'\u00A0'}
+                  </span>
+                ) : (
+                  chars.map((ch, i) => {
+                    const idx = startIndex + i
+                    const typedChar = typed[idx]
+                    let cls = 'char'
+  
+                    if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
+                    else if (idx === typed.length) cls += ' cursor'
+  
+                    if (lineFinished && i === chars.length - 1) {
+                      cls += ' line-complete'
+                    }
+  
+                    return (
+                      <span key={i} className={cls}>
+                        {ch === ' ' ? '\u00A0' : ch}
+                      </span>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
 const KEY_ROWS = [
   ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 'Backspace'],
