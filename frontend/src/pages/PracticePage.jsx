@@ -96,6 +96,291 @@ function flattenLessonTargets(lesson, perRow) {
   return ['']
 }
 
+function buildExecutableSource(prompts, promptIndex) {
+  return prompts.slice(0, promptIndex + 1).join('\n')
+}
+
+function looksRunnable(code) {
+  const text = String(code ?? '').trim()
+  if (!text) return false
+
+  let braceBalance = 0
+  let parenBalance = 0
+  let quote = null
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    const prev = text[i - 1]
+
+    if (quote) {
+      if (ch === quote && prev !== '\\') quote = null
+      continue
+    }
+
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch
+      continue
+    }
+
+    if (ch === '{') braceBalance += 1
+    if (ch === '}') braceBalance -= 1
+    if (ch === '(') parenBalance += 1
+    if (ch === ')') parenBalance -= 1
+  }
+
+  if (quote) return false
+  if (braceBalance !== 0) return false
+  if (parenBalance !== 0) return false
+
+  const trimmed = text.trim()
+
+  if (trimmed.endsWith('{')) return false
+  if (trimmed.endsWith('else')) return false
+
+  return true
+}
+
+function runLessonCode(source) {
+  const code = String(source ?? '').trim()
+
+  if (!code) {
+    return {
+      status: 'idle',
+      lines: ['No code to run yet.'],
+    }
+  }
+
+  if (!looksRunnable(code)) {
+    const previewLines = code.split('\n').slice(-6)
+    return {
+      status: 'building',
+      lines: ['Building snippet...', ...previewLines],
+    }
+  }
+
+  const output = []
+
+  const fakeConsole = {
+    log: (...args) => {
+      output.push(
+        args
+          .map((arg) => {
+            if (typeof arg === 'string') return arg
+            try {
+              return JSON.stringify(arg)
+            } catch {
+              return String(arg)
+            }
+          })
+          .join(' ')
+      )
+    },
+  }
+
+  try {
+    const runner = new Function(
+      'console',
+      'window',
+      'document',
+      'fetch',
+      'localStorage',
+      'sessionStorage',
+      `
+        "use strict";
+        ${code}
+      `
+    )
+
+    runner(
+      fakeConsole,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined
+    )
+
+    return {
+      status: 'success',
+      lines: output.length > 0
+        ? ['Code executed successfully.', ...output]
+        : ['Code executed successfully.', 'No console output.'],
+    }
+  } catch (err) {
+    const message =
+      err && typeof err.message === 'string'
+        ? err.message
+        : 'Code is not runnable yet.'
+
+    return {
+      status: 'error',
+      lines: ['Code could not run yet.', message],
+    }
+  }
+}
+
+function explainCode(line) {
+  const text = String(line ?? '').trim()
+  if (!text) return 'Continue typing the code exactly as shown.'
+
+  const functionMatch = text.match(/^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\((.*?)\)\s*\{$/)
+  if (functionMatch) {
+    const [, name, paramsRaw] = functionMatch
+    const params = paramsRaw.trim()
+
+    if (!params) {
+      return `Starts a function named ${name}. This creates a reusable block of code that can be called later.`
+    }
+
+    return `Starts a function named ${name} that takes ${params} as input. The code inside this block will use that input when the function runs.`
+  }
+
+  if (text === '}') {
+    return 'Closes the current code block, such as a function, loop, or if statement.'
+  }
+
+  const returnStringMatch = text.match(/^return\s+["'`](.*)["'`];?$/)
+  if (returnStringMatch) {
+    return `Returns the text "${returnStringMatch[1]}" from the function.`
+  }
+
+  const returnNumberMatch = text.match(/^return\s+(\d+);?$/)
+  if (returnNumberMatch) {
+    return `Returns the number ${returnNumberMatch[1]} from the function.`
+  }
+
+  if (text.startsWith('return ')) {
+    return 'Returns a value from the function back to the place where the function was called.'
+  }
+
+  const constMatch = text.match(/^const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (constMatch) {
+    const [, name, value] = constMatch
+    return `Creates a constant named ${name} and gives it the value ${value}. This value should not be changed later.`
+  }
+
+  const letMatch = text.match(/^let\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (letMatch) {
+    const [, name, value] = letMatch
+    return `Creates a variable named ${name} and stores ${value} in it. This variable can be updated later.`
+  }
+
+  const updateMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\1\s*([\+\-])\s*(.+);$/)
+  if (updateMatch) {
+    const [, name, op, value] = updateMatch
+    if (op === '+') {
+      return `Updates ${name} by adding ${value} to its current value.`
+    }
+    return `Updates ${name} by subtracting ${value} from its current value.`
+  }
+
+  const assignMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (assignMatch) {
+    const [, name, value] = assignMatch
+    return `Changes the variable ${name} so it now stores ${value}.`
+  }
+
+  const consoleMatch = text.match(/^console\.log\((.*)\);$/)
+  if (consoleMatch) {
+    return `Prints ${consoleMatch[1]} to the console output so the user can see it.`
+  }
+
+  const ifMatch = text.match(/^if\s*\((.*)\)\s*\{$/)
+  if (ifMatch) {
+    return `Starts an if statement. The code inside will only run if ${ifMatch[1]} is true.`
+  }
+
+  const elseMatch = text.match(/^}\s*else\s*{$|^else\s*{$/)
+  if (elseMatch) {
+    return 'Starts the else block. This code runs when the if condition is false.'
+  }
+
+  const forMatch = text.match(/^for\s*\((.*?);(.*?);(.*?)\)\s*\{$/)
+  if (forMatch) {
+    const [, start, condition, update] = forMatch
+    return `Starts a loop. It begins with ${start.trim()}, keeps going while ${condition.trim()} is true, and updates with ${update.trim()} after each round.`
+  }
+
+  const callMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\((.*)\);$/)
+  if (callMatch) {
+    const [, name, args] = callMatch
+    if (args.trim()) {
+      return `Calls the function ${name} and passes in ${args}.`
+    }
+    return `Calls the function ${name} so it can run its code.`
+  }
+
+  return 'This line is part of the program you are building. Type it exactly to continue.'
+}
+
+function previewExecution(line) {
+  const text = String(line ?? '').trim()
+  if (!text) return 'Run the code to see what happens.'
+
+  const functionMatch = text.match(/^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\((.*?)\)\s*\{$/)
+  if (functionMatch) {
+    const [, name] = functionMatch
+    return `Preview: a function named ${name} is being created, but it will not do anything until it is called.`
+  }
+
+  const returnStringMatch = text.match(/^return\s+["'`](.*)["'`];?$/)
+  if (returnStringMatch) {
+    return `Preview: when this function runs, it will send back "${returnStringMatch[1]}".`
+  }
+
+  const returnNumberMatch = text.match(/^return\s+(\d+);?$/)
+  if (returnNumberMatch) {
+    return `Preview: when this function runs, it will send back ${returnNumberMatch[1]}.`
+  }
+
+  const letMatch = text.match(/^let\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (letMatch) {
+    const [, name, value] = letMatch
+    return `Preview: ${name} is set to ${value}.`
+  }
+
+  const constMatch = text.match(/^const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
+  if (constMatch) {
+    const [, name, value] = constMatch
+    return `Preview: ${name} is fixed at ${value}.`
+  }
+
+  const updateMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\1\s*([\+\-])\s*(.+);$/)
+  if (updateMatch) {
+    const [, name, op, value] = updateMatch
+    if (op === '+') return `Preview: ${name} will increase by ${value}.`
+    return `Preview: ${name} will decrease by ${value}.`
+  }
+
+  const consoleMatch = text.match(/^console\.log\((.*)\);$/)
+  if (consoleMatch) {
+    return `Preview: the program will print ${consoleMatch[1]} in the console.`
+  }
+
+  const ifMatch = text.match(/^if\s*\((.*)\)\s*\{$/)
+  if (ifMatch) {
+    return `Preview: the next lines only run if ${ifMatch[1]} is true.`
+  }
+
+  const elseMatch = text.match(/^}\s*else\s*{$|^else\s*{$/)
+  if (elseMatch) {
+    return 'Preview: this block runs when the earlier if condition is false.'
+  }
+
+  const forMatch = text.match(/^for\s*\((.*?);(.*?);(.*?)\)\s*\{$/)
+  if (forMatch) {
+    return 'Preview: the code inside this loop will repeat several times.'
+  }
+
+  const callMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\((.*)\);$/)
+  if (callMatch) {
+    const [, name] = callMatch
+    return `Preview: calling ${name} will run that function’s code.`
+  }
+
+  return 'Preview: this line contributes to the program being built.'
+}
+
 export default function PracticePage() {
   const { unitId, stepId } = useParams()
   const inputRef = useRef(null)
@@ -150,6 +435,17 @@ export default function PracticePage() {
   const target = normalizePromptText(prompts[safePromptIndex] ?? '')
   const doneExact = isExactRenderedMatch(typed, target)
   const expectedChar = typed.length < target.length ? target[typed.length] : null
+
+  const explanation = explainCode(target.trim())
+  const preview = previewExecution(target.trim())
+
+  const executableSource = useMemo(() => {
+    return buildExecutableSource(prompts, safePromptIndex)
+  }, [prompts, safePromptIndex])
+
+  const consoleResult = useMemo(() => {
+    return runLessonCode(executableSource)
+  }, [executableSource])
 
   const progressPercent =
     target.length > 0
@@ -386,83 +682,74 @@ export default function PracticePage() {
 
   function onKeyDown(e) {
     if (!target) return
-  
-    // ---------------------------
-    // TAB SUPPORT (2 spaces)
-    // ---------------------------
+
     if (e.key === 'Tab') {
       e.preventDefault()
-  
-      const tabText = '  ' // 2 spaces
-  
+
+      const tabText = '  '
+
       if (typed.length + tabText.length <= target.length) {
         let nextValue = typed
         let nextWrongCount = wrongCount
-  
+
         for (let i = 0; i < tabText.length; i += 1) {
           const nextChar = tabText[i]
           const expectedChar = target[typed.length + i]
-  
+
           nextValue += nextChar
-  
+
           if (expectedChar !== nextChar) {
             nextWrongCount += 1
           }
         }
-  
+
         if (nextWrongCount !== wrongCount) {
           setWrongCount(nextWrongCount)
         }
-  
+
         setTyped(nextValue)
-  
+
         if (!typingStartRef.current) {
           typingStartRef.current = Date.now()
         }
       }
-  
+
       return
     }
-  
-    // ---------------------------
-    // BACKSPACE SUPPORT
-    // ---------------------------
+
     if (e.key === 'Backspace') {
       e.preventDefault()
-  
+
       if (typed.length === 0) return
-  
+
       const removedChar = typed[typed.length - 1]
       const expectedChar = target[typed.length - 1]
-  
+
       if (removedChar !== expectedChar) {
         setFixedCount((v) => v + 1)
       }
-  
+
       setTyped(typed.slice(0, -1))
       return
     }
-  
-    // ---------------------------
-    // NORMAL CHARACTER INPUT
-    // ---------------------------
+
     if (e.key.length === 1) {
       e.preventDefault()
-  
+
       if (typed.length >= target.length) return
-  
+
       const expectedChar = target[typed.length]
-  
+
       if (e.key !== expectedChar) {
         setWrongCount((v) => v + 1)
       }
-  
+
       setTyped(typed + e.key)
-  
+
       if (!typingStartRef.current) {
         typingStartRef.current = Date.now()
       }
-  
+
       return
     }
   }
@@ -570,6 +857,46 @@ export default function PracticePage() {
           />
         </div>
 
+        <div className="practice-insight">
+          <div className="insight-card">
+            <div className="insight-title">LIVE EXPLANATION</div>
+            <div className="insight-text">{explanation}</div>
+          </div>
+
+          <div className="insight-card">
+            <div className="insight-title">EXECUTION PREVIEW</div>
+            <div className="insight-text">{preview}</div>
+          </div>
+
+          <div className={`insight-card console-card ${consoleResult.status}`}>
+            <div className="insight-title">CONSOLE OUTPUT</div>
+
+            <div className="console-shell">
+              <div className="console-header">
+                <span className="console-label">lesson-console</span>
+                <span className="console-state">
+                  {consoleResult.status === 'success'
+                    ? 'READY'
+                    : consoleResult.status === 'building'
+                    ? 'BUILDING'
+                    : consoleResult.status === 'error'
+                    ? 'WAITING / INCOMPLETE'
+                    : 'IDLE'}
+                </span>
+              </div>
+
+              <div className="console-body">
+                {consoleResult.lines.map((line, idx) => (
+                  <div key={idx} className="console-line">
+                    <span className="console-prompt">&gt;</span>
+                    <span className="console-text">{line}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="practice-hud">
           <span>
             Wrong: <b>{wrongCount}</b>
@@ -596,142 +923,142 @@ export default function PracticePage() {
 }
 
 function ChunkGrid({ target, typed }) {
-    const lines = target.split('\n')
-    const lineStarts = lines.reduce((acc, line, i) => {
-      if (i === 0) acc.push(0)
-      else acc.push(acc[i - 1] + lines[i - 1].length + 1)
-      return acc
-    }, [])
-  
-    function getCurrentLineIndex() {
-      for (let i = lines.length - 1; i >= 0; i -= 1) {
-        if (typed.length >= lineStarts[i]) return i
-      }
-      return 0
+  const lines = target.split('\n')
+  const lineStarts = lines.reduce((acc, line, i) => {
+    if (i === 0) acc.push(0)
+    else acc.push(acc[i - 1] + lines[i - 1].length + 1)
+    return acc
+  }, [])
+
+  function getCurrentLineIndex() {
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      if (typed.length >= lineStarts[i]) return i
     }
-  
-    function getTokenClass(line, charIndex) {
-      const keywords = ['function', 'return', 'const', 'let', 'if', 'else', 'for', 'console', 'log']
-      const punctuationChars = '{}()[];,.+-=*/<>!&|'
-  
-      for (const keyword of keywords) {
-        const before = charIndex === 0 ? ' ' : line[charIndex - 1]
-        const slice = line.slice(charIndex, charIndex + keyword.length)
-        const after = line[charIndex + keyword.length] ?? ' '
-  
-        const beforeOk = !/[A-Za-z0-9_$]/.test(before)
-        const afterOk = !/[A-Za-z0-9_$]/.test(after)
-  
-        if (slice === keyword && beforeOk && afterOk) return ' keyword'
-      }
-  
-      if (/\d/.test(line[charIndex])) return ' number'
-      if (punctuationChars.includes(line[charIndex])) return ' punctuation'
-  
-      return ''
+    return 0
+  }
+
+  function getTokenClass(line, charIndex) {
+    const keywords = ['function', 'return', 'const', 'let', 'if', 'else', 'for', 'console', 'log']
+    const punctuationChars = '{}()[];,.+-=*/<>!&|'
+
+    for (const keyword of keywords) {
+      const before = charIndex === 0 ? ' ' : line[charIndex - 1]
+      const slice = line.slice(charIndex, charIndex + keyword.length)
+      const after = line[charIndex + keyword.length] ?? ' '
+
+      const beforeOk = !/[A-Za-z0-9_$]/.test(before)
+      const afterOk = !/[A-Za-z0-9_$]/.test(after)
+
+      if (slice === keyword && beforeOk && afterOk) return ' keyword'
     }
-  
-    function getStringMask(line) {
-      const mask = Array(line.length).fill(false)
-      let quote = null
-  
-      for (let i = 0; i < line.length; i += 1) {
-        const ch = line[i]
-  
-        if (!quote && (ch === '"' || ch === "'" || ch === '`')) {
-          quote = ch
-          mask[i] = true
-        } else if (quote) {
-          mask[i] = true
-          if (ch === quote && line[i - 1] !== '\\') {
-            quote = null
-          }
+
+    if (/\d/.test(line[charIndex])) return ' number'
+    if (punctuationChars.includes(line[charIndex])) return ' punctuation'
+
+    return ''
+  }
+
+  function getStringMask(line) {
+    const mask = Array(line.length).fill(false)
+    let quote = null
+
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i]
+
+      if (!quote && (ch === '"' || ch === "'" || ch === '`')) {
+        quote = ch
+        mask[i] = true
+      } else if (quote) {
+        mask[i] = true
+        if (ch === quote && line[i - 1] !== '\\') {
+          quote = null
         }
       }
-  
-      return mask
     }
-  
-    const currentLineIndex = getCurrentLineIndex()
-  
-    return (
-      <div className="type-grid">
-        {lines.map((line, lineIdx) => {
-          const chars = line.split('')
-          const startIndex = lineStarts[lineIdx]
-          const isEmptyLine = line.length === 0
-          const lineEndIndex = startIndex + line.length
-          const cursorOnEmptyLine = isEmptyLine && typed.length === startIndex
-          const stringMask = getStringMask(line)
-  
-          const lineFinished =
-            !isEmptyLine &&
-            typed.length >= lineEndIndex &&
-            typed.slice(startIndex, lineEndIndex) === line
-  
-          const showNextLineIndicator =
-            lineIdx === currentLineIndex + 1 &&
-            currentLineIndex < lines.length - 1 &&
-            typed.length === lineStarts[lineIdx]
-  
-          return (
-            <div
-              key={lineIdx}
-              className={`type-line ${showNextLineIndicator ? 'next-line-active' : ''} ${lineFinished ? 'line-finished-row' : ''}`}
-            >
-              <div
-                className={`line-number ${showNextLineIndicator ? 'line-number-next' : ''}`}
-              >
-                {lineIdx + 1}
-              </div>
-  
-              <div className="code-line">
-                {showNextLineIndicator && (
-                  <span className="next-line-indicator" aria-hidden="true">
-                    ↳
-                  </span>
-                )}
-  
-                {isEmptyLine ? (
-                  <span
-                    className={`char empty-line-marker ${cursorOnEmptyLine ? 'cursor' : ''}`}
-                  >
-                    {'\u00A0'}
-                  </span>
-                ) : (
-                  chars.map((ch, i) => {
-                    const idx = startIndex + i
-                    const typedChar = typed[idx]
-  
-                    let cls = 'char'
-                    if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
-                    else if (idx === typed.length) cls += ' cursor'
-  
-                    if (stringMask[i]) cls += ' string'
-                    else cls += getTokenClass(line, i)
-  
-                    if (lineFinished) cls += ' line-complete-flash'
-  
-                    return (
-                      <span key={i} className={cls}>
-                        {ch === ' ' ? '\u00A0' : ch}
-                      </span>
-                    )
-                  })
-                )}
-  
-                {lineFinished && (
-                  <span className="line-complete-badge" aria-hidden="true">
-                    ✔
-                  </span>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
+
+    return mask
   }
+
+  const currentLineIndex = getCurrentLineIndex()
+
+  return (
+    <div className="type-grid">
+      {lines.map((line, lineIdx) => {
+        const chars = line.split('')
+        const startIndex = lineStarts[lineIdx]
+        const isEmptyLine = line.length === 0
+        const lineEndIndex = startIndex + line.length
+        const cursorOnEmptyLine = isEmptyLine && typed.length === startIndex
+        const stringMask = getStringMask(line)
+
+        const lineFinished =
+          !isEmptyLine &&
+          typed.length >= lineEndIndex &&
+          typed.slice(startIndex, lineEndIndex) === line
+
+        const showNextLineIndicator =
+          lineIdx === currentLineIndex + 1 &&
+          currentLineIndex < lines.length - 1 &&
+          typed.length === lineStarts[lineIdx]
+
+        return (
+          <div
+            key={lineIdx}
+            className={`type-line ${showNextLineIndicator ? 'next-line-active' : ''} ${lineFinished ? 'line-finished-row' : ''}`}
+          >
+            <div
+              className={`line-number ${showNextLineIndicator ? 'line-number-next' : ''}`}
+            >
+              {lineIdx + 1}
+            </div>
+
+            <div className="code-line">
+              {showNextLineIndicator && (
+                <span className="next-line-indicator" aria-hidden="true">
+                  ↳
+                </span>
+              )}
+
+              {isEmptyLine ? (
+                <span
+                  className={`char empty-line-marker ${cursorOnEmptyLine ? 'cursor' : ''}`}
+                >
+                  {'\u00A0'}
+                </span>
+              ) : (
+                chars.map((ch, i) => {
+                  const idx = startIndex + i
+                  const typedChar = typed[idx]
+
+                  let cls = 'char'
+                  if (typedChar != null) cls += typedChar === ch ? ' correct' : ' wrong'
+                  else if (idx === typed.length) cls += ' cursor'
+
+                  if (stringMask[i]) cls += ' string'
+                  else cls += getTokenClass(line, i)
+
+                  if (lineFinished) cls += ' line-complete-flash'
+
+                  return (
+                    <span key={i} className={cls}>
+                      {ch === ' ' ? '\u00A0' : ch}
+                    </span>
+                  )
+                })
+              )}
+
+              {lineFinished && (
+                <span className="line-complete-badge" aria-hidden="true">
+                  ✔
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 const KEY_ROWS = [
   ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 'Backspace'],
