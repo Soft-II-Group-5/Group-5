@@ -1,0 +1,32 @@
+.settings-shell {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.settings-title {
+  font-size: 2rem;
+  font-weight: 900;
+  margin-bottom: 1.5rem;
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.setting-row label {
+  font-weight: 700;
+}
+
+.setting-row select {
+  padding: 4px 8px;
+}
+
+.setting-row input[type="checkbox"] {
+  transform: scale(1.2);
+}
